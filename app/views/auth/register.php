@@ -19,16 +19,16 @@ require ROOT . '/app/views/partials/navbar.php';
       <div class="form-row">
         <div class="form-group">
           <label for="first_name">First Name</label>
-          <input type="text" id="first_name" name="first_name" placeholder="Maria" required autofocus>
+          <input type="text" id="first_name" name="first_name" placeholder="Andrea" required autofocus>
         </div>
         <div class="form-group">
           <label for="last_name">Last Name</label>
-          <input type="text" id="last_name" name="last_name" placeholder="Santos" required>
+          <input type="text" id="last_name" name="last_name" placeholder="To Chip" required>
         </div>
       </div>
       <div class="form-group">
         <label for="email">Email Address</label>
-        <input type="email" id="email" name="email" placeholder="you@example.com" required>
+        <input type="email" id="email" name="email" placeholder="andreatochip@gmail.com" required>
       </div>
       <div class="form-group">
         <label for="password">Password</label>

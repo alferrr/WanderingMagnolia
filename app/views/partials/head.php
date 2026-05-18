@@ -12,5 +12,6 @@ $pageTitle = $pageTitle ?? 'Wandering Magnolia';
 <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="/assets/css/app.css">
+  <link rel="shortcut icon" href="/assets/images/logo.png" type="image/x-icon">
 </head>
 <body>

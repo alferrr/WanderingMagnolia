@@ -31,7 +31,7 @@ unset($_SESSION['auth_success']);
     <form method="POST" action="/login">
       <div class="form-group">
         <label for="email">Email Address</label>
-        <input type="email" id="email" name="email" placeholder="you@example.com" required autofocus>
+        <input type="email" id="email" name="email" placeholder="andreatochip@gmail.com" required autofocus>
       </div>
       <div class="form-group">
         <label for="password">Password</label>
