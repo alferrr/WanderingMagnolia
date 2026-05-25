@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) session_start();
 $loggedIn    = !empty($_SESSION['user_id']);
+$isAdmin     = !empty($_SESSION['is_admin']);
 $firstName   = $_SESSION['first_name'] ?? '';
 $initial     = $firstName ? strtoupper($firstName[0]) : '?';
 $currentPath = strtok($_SERVER['REQUEST_URI'], '?');
@@ -13,6 +14,9 @@ $currentPath = strtok($_SERVER['REQUEST_URI'], '?');
     <div class="nav-links" id="nav-links">
       <a href="/recipes"    class="<?= $currentPath === '/recipes'    ? 'active' : '' ?>">Recipes</a>
       <a href="/add-recipe" class="<?= $currentPath === '/add-recipe' ? 'active' : '' ?>">Add Recipe</a>
+      <?php if ($isAdmin): ?>
+      <a href="/admin" class="<?= str_starts_with($currentPath, '/admin') ? 'active' : '' ?>">Admin</a>
+      <?php endif; ?>
     </div>
     <div class="nav-actions">
       <a href="/account" class="nav-user" style="text-decoration:none;">
@@ -45,6 +49,9 @@ $currentPath = strtok($_SERVER['REQUEST_URI'], '?');
         <div class="drawer-user">
           <div class="avatar avatar-lg"><?= htmlspecialchars($initial) ?></div>
           <span><?= htmlspecialchars($firstName) ?></span>
+          <?php if ($isAdmin): ?>
+          <span style="font-size:.68rem; font-weight:700; background:var(--pink-pale); color:var(--pink-dark); padding:2px 8px; border-radius:999px; margin-left:4px;">Admin</span>
+          <?php endif; ?>
         </div>
         <div class="drawer-divider"></div>
         <a href="/recipes"    class="drawer-link <?= $currentPath === '/recipes'    ? 'active' : '' ?>">
@@ -56,6 +63,18 @@ $currentPath = strtok($_SERVER['REQUEST_URI'], '?');
         <a href="/account"    class="drawer-link <?= $currentPath === '/account'    ? 'active' : '' ?>">
           <span class="material-symbols-outlined">manage_accounts</span> My Account
         </a>
+        <?php if ($isAdmin): ?>
+        <div class="drawer-divider"></div>
+        <a href="/admin"          class="drawer-link <?= $currentPath === '/admin'          ? 'active' : '' ?>">
+          <span class="material-symbols-outlined">admin_panel_settings</span> Dashboard
+        </a>
+        <a href="/admin/recipes"  class="drawer-link <?= $currentPath === '/admin/recipes'  ? 'active' : '' ?>">
+          <span class="material-symbols-outlined">edit_note</span> Manage Recipes
+        </a>
+        <a href="/admin/users"    class="drawer-link <?= $currentPath === '/admin/users'    ? 'active' : '' ?>">
+          <span class="material-symbols-outlined">group</span> Manage Users
+        </a>
+        <?php endif; ?>
         <div class="drawer-divider"></div>
         <a href="/logout" class="drawer-link drawer-logout">
           <span class="material-symbols-outlined">logout</span> Sign out

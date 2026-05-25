@@ -12,59 +12,99 @@ class RecipeModel {
     public function getAll(): array {
         $stmt = $this->db->query(
             'SELECT r.*, u.first_name, u.last_name,
-                    orig.title AS original_title, orig.recipe_id AS original_id
+                    orig.title AS original_title, orig.recipe_id AS original_id,
+                    COALESCE(AVG(rt.stars), 0) AS avg_rating,
+                    COUNT(rt.rating_id) AS rating_count
              FROM recipes r
              LEFT JOIN users u ON r.user_id = u.user_id
              LEFT JOIN recipes orig ON r.remixed_from = orig.recipe_id
+             LEFT JOIN ratings rt ON r.recipe_id = rt.recipe_id
              WHERE r.is_deleted = 0
+             GROUP BY r.recipe_id
              ORDER BY r.created_at DESC'
         );
         return $stmt->fetchAll();
     }
 
-    public function getPaginated(int $page = 1, string $search = '', string $difficulty = ''): array {
-        $offset     = ($page - 1) * self::PER_PAGE;
-        $conditions = ['r.is_deleted = 0'];
-        $params     = [];
+   public function getPaginated(int $page = 1, string $search = '', string $difficulty = '', string $filter = '', ?int $stars = null): array {
+    $offset     = ($page - 1) * self::PER_PAGE;
+    $conditions = ['r.is_deleted = 0'];
+    $params     = [];
 
-        if ($search !== '') {
-            $conditions[] = 'r.title LIKE ?';
-            $params[]     = '%' . $search . '%';
-        }
-        if ($difficulty !== '') {
-            $conditions[] = 'r.difficulty = ?';
-            $params[]     = $difficulty;
-        }
-
-        $where = 'WHERE ' . implode(' AND ', $conditions);
-
-        $countStmt = $this->db->prepare("SELECT COUNT(*) FROM recipes r $where");
-        $countStmt->execute($params);
-        $total = (int) $countStmt->fetchColumn();
-
-        $params[] = self::PER_PAGE;
-        $params[] = $offset;
-
-        $stmt = $this->db->prepare(
-            "SELECT r.*, u.first_name, u.last_name,
-                    orig.title AS original_title, orig.recipe_id AS original_id
-             FROM recipes r
-             LEFT JOIN users u ON r.user_id = u.user_id
-             LEFT JOIN recipes orig ON r.remixed_from = orig.recipe_id
-             $where
-             ORDER BY r.created_at DESC
-             LIMIT ? OFFSET ?"
-        );
-        $stmt->execute($params);
-
-        return [
-            'recipes'      => $stmt->fetchAll(),
-            'total'        => $total,
-            'per_page'     => self::PER_PAGE,
-            'current_page' => $page,
-            'total_pages'  => (int) ceil($total / self::PER_PAGE),
-        ];
+    if ($search !== '') {
+        $conditions[] = 'r.title LIKE ?';
+        $params[]     = '%' . $search . '%';
     }
+    if ($difficulty !== '') {
+        $conditions[] = 'r.difficulty = ?';
+        $params[]     = $difficulty;
+    }
+    if ($filter === 'original') {
+        $conditions[] = 'r.remixed_from IS NULL AND r.is_premade = 0';
+    } elseif ($filter === 'remix') {
+        $conditions[] = 'r.remixed_from IS NOT NULL';
+    } elseif ($filter === 'curated') {
+        $conditions[] = 'r.is_premade = 1';
+    }
+
+    $where        = 'WHERE ' . implode(' AND ', $conditions);
+    $having       = '';
+    $havingParams = [];
+
+    if ($stars === 0) {
+        $having = 'HAVING COUNT(rt.rating_id) = 0';
+    } elseif ($stars !== null && $stars >= 1) {
+        $having = 'HAVING ROUND(COALESCE(AVG(rt.stars), 0)) = ?';
+        $havingParams[] = $stars;
+    }
+
+    $orderBy = 'r.created_at DESC';
+    if ($filter === 'top') {
+        $orderBy = 'avg_rating DESC, rating_count DESC, r.created_at DESC';
+    }
+
+    $countStmt = $this->db->prepare(
+        "SELECT COUNT(*) FROM (
+            SELECT r.recipe_id
+            FROM recipes r
+            LEFT JOIN ratings rt ON r.recipe_id = rt.recipe_id
+            $where
+            GROUP BY r.recipe_id
+            $having
+        ) AS sub"
+    );
+    $countStmt->execute(array_merge($params, $havingParams));
+    $total = (int) $countStmt->fetchColumn();
+
+    $queryParams   = array_merge($params, $havingParams);
+    $queryParams[] = self::PER_PAGE;
+    $queryParams[] = $offset;
+
+    $stmt = $this->db->prepare(
+        "SELECT r.*, u.first_name, u.last_name,
+                orig.title AS original_title, orig.recipe_id AS original_id,
+                COALESCE(AVG(rt.stars), 0) AS avg_rating,
+                COUNT(rt.rating_id) AS rating_count
+         FROM recipes r
+         LEFT JOIN users u ON r.user_id = u.user_id
+         LEFT JOIN recipes orig ON r.remixed_from = orig.recipe_id
+         LEFT JOIN ratings rt ON r.recipe_id = rt.recipe_id
+         $where
+         GROUP BY r.recipe_id
+         $having
+         ORDER BY $orderBy
+         LIMIT ? OFFSET ?"
+    );
+    $stmt->execute($queryParams);
+
+    return [
+        'recipes'      => $stmt->fetchAll(),
+        'total'        => $total,
+        'per_page'     => self::PER_PAGE,
+        'current_page' => $page,
+        'total_pages'  => (int) ceil($total / self::PER_PAGE),
+    ];
+}
 
     public function getByUserPaginated(int $userId, int $page = 1, string $search = ''): array {
         $offset     = ($page - 1) * self::PER_PAGE_USER;
@@ -86,10 +126,15 @@ class RecipeModel {
         $params[] = $offset;
 
         $stmt = $this->db->prepare(
-            "SELECT r.*, orig.title AS original_title, orig.recipe_id AS original_id
+            "SELECT r.*,
+                    orig.title AS original_title, orig.recipe_id AS original_id,
+                    COALESCE(AVG(rt.stars), 0) AS avg_rating,
+                    COUNT(rt.rating_id) AS rating_count
              FROM recipes r
              LEFT JOIN recipes orig ON r.remixed_from = orig.recipe_id
+             LEFT JOIN ratings rt ON r.recipe_id = rt.recipe_id
              $where
+             GROUP BY r.recipe_id
              ORDER BY r.created_at DESC
              LIMIT ? OFFSET ?"
         );
@@ -131,11 +176,15 @@ class RecipeModel {
     public function getById(int $id): array|false {
         $stmt = $this->db->prepare(
             'SELECT r.*, u.first_name, u.last_name,
-                    orig.title AS original_title, orig.recipe_id AS original_id
+                    orig.title AS original_title, orig.recipe_id AS original_id,
+                    COALESCE(AVG(rt.stars), 0) AS avg_rating,
+                    COUNT(rt.rating_id) AS rating_count
              FROM recipes r
              LEFT JOIN users u ON r.user_id = u.user_id
              LEFT JOIN recipes orig ON r.remixed_from = orig.recipe_id
-             WHERE r.recipe_id = ?'
+             LEFT JOIN ratings rt ON r.recipe_id = rt.recipe_id
+             WHERE r.recipe_id = ?
+             GROUP BY r.recipe_id'
         );
         $stmt->execute([$id]);
         return $stmt->fetch();
@@ -180,7 +229,6 @@ class RecipeModel {
         }
     }
 
-    // Soft delete — moves to trash
     public function softDelete(int $recipeId): void {
         $stmt = $this->db->prepare(
             'UPDATE recipes SET is_deleted = 1, deleted_at = NOW() WHERE recipe_id = ?'
@@ -188,7 +236,6 @@ class RecipeModel {
         $stmt->execute([$recipeId]);
     }
 
-    // Restore from trash
     public function restore(int $recipeId): void {
         $stmt = $this->db->prepare(
             'UPDATE recipes SET is_deleted = 0, deleted_at = NULL WHERE recipe_id = ?'
@@ -196,13 +243,11 @@ class RecipeModel {
         $stmt->execute([$recipeId]);
     }
 
-    // Permanent delete
     public function delete(int $recipeId): void {
         $stmt = $this->db->prepare('DELETE FROM recipes WHERE recipe_id = ?');
         $stmt->execute([$recipeId]);
     }
 
-    // Purge recipes trashed more than 30 days ago
     public function purgeExpiredTrash(): void {
         $stmt = $this->db->prepare(
             'DELETE FROM recipes WHERE is_deleted = 1 AND deleted_at < NOW() - INTERVAL 30 DAY'
@@ -232,5 +277,54 @@ class RecipeModel {
             'INSERT INTO directions (recipe_id, step_number, instruction) VALUES (?, ?, ?)'
         );
         $stmt->execute([$recipeId, $step, $instruction]);
+    }
+
+    // Admin
+
+
+     public function getActiveForAdmin(): array {
+        $stmt = $this->db->query(
+            'SELECT r.*, u.first_name, u.last_name,
+                    COALESCE(AVG(rt.stars), 0) AS avg_rating,
+                    COUNT(DISTINCT rt.rating_id) AS rating_count
+             FROM recipes r
+             LEFT JOIN users u ON r.user_id = u.user_id
+             LEFT JOIN ratings rt ON r.recipe_id = rt.recipe_id
+             WHERE r.is_deleted = 0
+             GROUP BY r.recipe_id
+             ORDER BY r.created_at DESC'
+        );
+        return $stmt->fetchAll();
+    }
+ 
+    public function getTrashedForAdmin(): array {
+        $stmt = $this->db->query(
+            'SELECT r.*, u.first_name, u.last_name
+             FROM recipes r
+             LEFT JOIN users u ON r.user_id = u.user_id
+             WHERE r.is_deleted = 1
+             ORDER BY r.deleted_at DESC'
+        );
+        return $stmt->fetchAll();
+    }
+ 
+    public function getTrashedCountAdmin(): int {
+        $stmt = $this->db->query('SELECT COUNT(*) FROM recipes WHERE is_deleted = 1');
+        return (int) $stmt->fetchColumn();
+    }
+ 
+    // Keep getAllForAdmin for dashboard stats
+    public function getAllForAdmin(): array {
+        $stmt = $this->db->query(
+            'SELECT r.*, u.first_name, u.last_name,
+                    COALESCE(AVG(rt.stars), 0) AS avg_rating,
+                    COUNT(DISTINCT rt.rating_id) AS rating_count
+             FROM recipes r
+             LEFT JOIN users u ON r.user_id = u.user_id
+             LEFT JOIN ratings rt ON r.recipe_id = rt.recipe_id
+             GROUP BY r.recipe_id
+             ORDER BY r.created_at DESC'
+        );
+        return $stmt->fetchAll();
     }
 }
