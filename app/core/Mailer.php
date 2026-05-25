@@ -20,6 +20,7 @@ class Mailer {
             $mail->Password   = MAIL_PASS;
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = MAIL_PORT;
+            $mail->Timeout = 10;
 
             $mail->setFrom(MAIL_USER, MAIL_FROM_NAME);
             $mail->addAddress($toEmail, $toName);
