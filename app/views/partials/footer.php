@@ -9,7 +9,7 @@
       <div class="footer-col">
         <h4>Company</h4>
         <ul>
-          <li><a href="/coming-soon">About Us</a></li>
+          <li><a href="/about">About Us</a></li>
           <li><a href="/coming-soon">Our Stories</a></li>
           <li><a href="/coming-soon">Work with Us</a></li>
         </ul>
