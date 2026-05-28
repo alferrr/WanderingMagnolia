@@ -13,4 +13,9 @@ class HomeController {
         if (session_status() === PHP_SESSION_NONE) session_start();
         require ROOT . '/app/views/coming-soon.php';
     }
+
+    public function about(): void {
+    if (session_status() === PHP_SESSION_NONE) session_start();
+    require ROOT . '/app/views/about.php';
+}
 }
